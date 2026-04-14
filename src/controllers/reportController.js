@@ -1,0 +1,522 @@
+const mongoose = require("mongoose");
+const Report = require("../models/Report");
+const validateStatusTransition = require("../utils/validateStatusTransition");
+const Authority = require("../models/Authority");
+const decideAuthority = require("../utils/authorityDecider");
+const calculateDeadline = require("../utils/deadlineCalculator");
+const Notification = require("../models/Notification");
+const User = require("../models/User");
+
+
+const createReport = async (req, res) => {
+    try{ 
+        const {
+            title,
+            description,
+            category,
+            cause,
+            city,
+            area,
+            latitude,
+            longitude,
+            media
+        } = req.body;
+
+        if ( 
+            !title ||
+            !description ||
+            !category ||
+            !city ||
+            !area ||
+            latitude === undefined ||
+            longitude === undefined
+        ) {
+            return res.status(400).json({
+                message: "All required fields must be provided"
+            });
+        }
+
+        if(!media || !Array.isArray(media) || media.length === 0) {
+            return res.status(400).json({
+                message: "At least one image or video is required"
+            });
+        }
+
+        for (let item of media){
+            if(!item.type || !item.url){
+                return res.status(400).json({
+                    message: "Each media item must have type and url"
+                });
+            }
+        }
+
+        const report = await Report.create({
+            title,
+            description,
+            category,
+            cause,
+            city,
+            area,
+            latitude,
+            longitude,
+            media,
+            reportedBy: req.user.id,
+            displayName: req.user.displayName,
+            status: "submitted",
+            statusHistory: [
+                {
+                    from: null,
+                    to: "submitted",
+                    changedBy: req.user.id,
+                    changedAt: new Date()
+                }
+            ]
+        });
+
+        res.status(201).json({
+            message: "Report created successfully",
+            report
+        });
+
+
+    } catch(error) {
+        res.status(500).json({
+            message: "Server error",
+            error: error.message
+        });
+    }
+};
+const getMyReports = async (req, res) => {
+  try {
+    const reports = await Report.find({
+      reportedBy: req.user.id
+    }).sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      reports
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error",
+      error: error.message
+    });
+  }
+};
+
+const getReports = async(req, res) => {
+    try{
+        const { page = 1, limit = 10, status, category, city } = req.query;
+
+        const query = {};
+
+        //role based access
+        if(req.user.role === "citizen") {
+            // query.reportedByBy = req.user.id;
+        }
+
+        //filters
+        if(status) {
+            query.status = status;
+        }
+        if(category) {
+            query.category = category;
+        }
+        if(city) {
+            query.city = city;
+        }
+
+        const reports = await Report.find(query)
+        .populate("assignedAuthority", "name type jurisdiction")
+        .sort({ createdAt: -1 }) //latest first
+        .skip((page - 1) * limit)
+        .limit(Number(limit));
+
+        const total = await Report.countDocuments(query);
+
+        res.status(200).json({
+            success: true,
+            total,
+            page: Number(page),
+            reports
+        });
+
+
+
+
+    } catch(error) {
+        res.status(500).json({
+            messgae: "server error",
+            error: error.message
+        });
+    }
+};
+
+
+const getSingleReport = async(req, res) => {
+    try{
+
+        const{id} = req.params;
+
+        if(!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                message: "Invalid report ID"
+            });
+        }
+
+        const report = await Report.findById(id)
+        .populate("reportedBy","displayName")
+        .populate("assignedAuthority", "name type jurisdiction");
+
+        if(!report) {
+            return res.status(404).json({
+                message: "Report not found"
+            });
+        }
+        res.status(200).json(report);
+
+    } catch(error){
+        res.status(500).json({
+            message: "Server error"
+        });
+    }
+};
+
+const updateReportStatus = async(req, res) => {
+    try {
+
+        const { id } = req.params;
+        const { status, authorityComment } = req.body;
+
+        //role check 
+        if(!["authority", "admin"].includes(req.user.role)) {
+            return res.status(403).json({
+                message: "Access denied"
+            });
+        }
+
+        //validate report id
+        if(!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                message: "Invalid report ID"
+            });
+        }
+
+        //fetch report
+        const report = await Report.findById(id);
+
+        if(!report) {
+            return res.status(404).json({
+                message: "Report not found "
+            });
+        }
+
+        //  Restrict authority to only their reports
+        if (
+        req.user.role === "authority" &&
+        (!report.assignedAuthority ||
+            report.assignedAuthority.toString() !== req.user.authorityId.toString())
+        ) {
+        return res.status(403).json({
+            message: "You can only update your assigned reports"
+        });
+        }
+
+        // validate transition
+        const isValid = validateStatusTransition(report.status, status);
+        if(!isValid) {
+            return res.status(400).json({
+                message: `Cannot change status from ${report.status} to ${status}`,
+            });
+        }
+
+        //side effects
+        if(status === "in_progress") {
+            report.assignedAt = new Date();
+        }
+
+        if(status === "resolved") {
+            report.resolvedAt = new Date();
+        }
+
+        if(status === "rejected" && !authorityComment) {
+            return res.status(400).json({
+                message: "Rejection requires a comment"
+            });
+        }
+
+        //audit trail 
+        report.statusHistory.push({
+            from: report.status,
+            to: status,
+            changedBy: req.user.id,
+        });
+
+        //update fields
+        report.status = status;
+        report.authorityComment = authorityComment || "";
+
+        await report.save();
+
+        return res.status(200).json({
+            message: "Report status updated Successfully",
+            report,
+        });
+
+    } catch(error) {
+        console.error(error);
+        res.status(500).json({
+            message: "Server error"
+        });
+    }
+};
+
+const assignAuthority = async (req, res) => {
+    try {
+        const report = await Report.findById(req.params.id);
+        if(!report) {
+            return res.status(404).json({
+                message: "Report not found"
+            });
+        }
+
+        if (report.assignedAuthority) {
+            return res.status(400).json({
+                message: "Authority already assigned to this report"
+            });
+        }
+        if (report.status === "resolved") {
+            return res.status(400).json({
+                message: "Resolved reports cannot be reassigned"
+            });
+        }
+
+        const authorityType = decideAuthority(report);
+        if(!authorityType) {
+            return res.status(400).json({
+                message: "Cannot decide authority"
+            });
+        }
+
+        const authority = await Authority.findOne({
+            type: authorityType.toLowerCase(),
+            jurisdiction: report.city.trim()
+        });
+
+        console.log("DEBUG → Report category:", report.category);
+        console.log("DEBUG → Decided authority type:", authorityType);
+        console.log("DEBUG → Report city:", report.city);
+        if(!authority) {
+            return res.status(404).json({
+                message: `No authority found for type=${authorityType}, city=${report.city}`
+            });
+        }
+
+        if (validateStatusTransition(report.status,"assigned")) {
+            report.statusHistory.push({
+                from: report.status,
+                to: "assigned",
+                changedBy: req.user.id,
+                changedAt: new Date()
+            });
+        }
+
+
+        report.assignedAuthority = authority._id;
+        report.status = "assigned";
+        //  Create notification for authority user
+        const authorityUser = await User.findOne({
+        authorityId: authority._id
+        });
+
+        if (authorityUser) {
+        await Notification.create({
+            user: authorityUser._id,
+            message: `New report assigned: ${report.title}`,
+            type: "assignment"
+        });
+        }
+       report.deadline = calculateDeadline(report.category);
+        await report.save();
+
+        if (!authority.assignedReports.includes(report._id)){
+            authority.assignedReports.push(report._id);
+            await authority.save();
+        }
+        
+
+        res.json({
+            message: "Authority assigned successfully",
+            authority: authority.name
+        });
+    } catch(error) {
+        res.status(500).json({
+            message: "Server Error",
+            error: error.message
+        });
+    }
+};
+
+const manualAssignAuthority = async (req, res) => {
+  const { authorityId } = req.body;
+   if (!authorityId) {
+      return res.status(400).json({
+        message: "authorityId is required in request body"
+      });
+    }
+
+  const report = await Report.findById(req.params.id);
+  if (!report) {
+    return res.status(404).json({ message: "Report not found" });
+  }
+
+   if (report.assignedAuthority) {
+        return res.status(400).json({
+            message: "Report already has an assigned authority"
+        });
+    }
+
+    if (report.status === "resolved") {
+        return res.status(400).json({
+            message: "Resolved reports cannot be reassigned"
+        });
+    }
+
+    const authority = await Authority.findById(authorityId);
+    if (!authority) {
+        return res.status(404).json({ message: `Authority not found for id=${authorityId}` });
+    }
+
+    if (report.status !== "assigned") {
+        report.statusHistory.push({
+            from: report.status,
+            to: "assigned",
+            changedBy: req.user.id,
+            changedAt: new Date()
+        });
+    }
+
+  report.assignedAuthority = authority._id;
+  report.status = "assigned";
+    report.deadline = calculateDeadline(report.category);
+  await report.save();
+
+    if (!authority.assignedReports.includes(report._id)) {
+        authority.assignedReports.push(report._id);
+        await authority.save();
+    }
+  res.json({
+    message: "Authority manually assigned",
+    authority: authority.name
+  });
+};
+
+// Authority dashboard – view assigned reports
+const getAssignedReportsForAuthority = async (req, res) => {
+  try {
+    // only authority can access
+    if (req.user.role !== "authority") {
+      return res.status(403).json({
+        message: "Access denied"
+      });
+    }
+
+    const reports = await Report.find({
+      assignedAuthority: req.user.authorityId
+    }).sort({ createdAt: -1 });
+
+    
+    // console.log("AUTH USER authorityId:", req.user.authorityId);
+    // console.log("TYPE of authorityId:", typeof req.user.authorityId);
+
+    res.status(200).json({
+      success: true,
+      total: reports.length,
+      reports
+    });
+
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error",
+      error: error.message
+    });
+  }
+};
+
+
+const getReportStats = async (req, res) => {
+  try {
+    const stats = await Report.aggregate([
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Convert array to object
+    const result = {
+      totalReports: 0,
+      submitted: 0,
+      assigned: 0,
+      in_progress: 0,
+      resolved: 0,
+      rejected: 0
+    };
+
+    stats.forEach(item => {
+      result[item._id] = item.count;
+      result.totalReports += item.count;
+    });
+
+    res.status(200).json(result);
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Error fetching stats",
+      error: error.message
+    });
+  }
+};
+
+
+const getCategoryStats = async (req, res) => {
+  try {
+    const stats = await Report.aggregate([
+      {
+        $group: {
+          _id: "$category",
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const result = {};
+
+    stats.forEach(item => {
+      result[item._id] = item.count;
+    });
+
+    res.status(200).json(result);
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Error fetching category stats",
+      error: error.message
+    });
+  }
+};
+
+module.exports = { createReport, 
+                    getReports, 
+                    getSingleReport, 
+                    updateReportStatus, 
+                    assignAuthority, 
+                    manualAssignAuthority, 
+                    getAssignedReportsForAuthority,
+                    getReportStats,
+                    getCategoryStats,
+                    getMyReports };
