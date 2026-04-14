@@ -86,6 +86,7 @@ const createReport = async (req, res) => {
         });
     }
 };
+<<<<<<< HEAD
 const getMyReports = async (req, res) => {
   try {
     const reports = await Report.find({
@@ -104,6 +105,9 @@ const getMyReports = async (req, res) => {
     });
   }
 };
+=======
+
+>>>>>>> 8bce1f748f96d000c186b273ded77e87083b855d
 
 const getReports = async(req, res) => {
     try{
@@ -518,5 +522,9 @@ module.exports = { createReport,
                     manualAssignAuthority, 
                     getAssignedReportsForAuthority,
                     getReportStats,
+<<<<<<< HEAD
                     getCategoryStats,
                     getMyReports };
+=======
+                    getCategoryStats };
+>>>>>>> 8bce1f748f96d000c186b273ded77e87083b855d

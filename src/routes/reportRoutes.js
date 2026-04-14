@@ -10,8 +10,12 @@ const { createReport,
         manualAssignAuthority, 
         getAssignedReportsForAuthority,
         getReportStats,
+<<<<<<< HEAD
         getCategoryStats,
         getMyReports } = require("../controllers/reportController");
+=======
+        getCategoryStats } = require("../controllers/reportController");
+>>>>>>> 8bce1f748f96d000c186b273ded77e87083b855d
         
 const Authority = require("../models/Authority");
 
@@ -21,8 +25,11 @@ router.post("/", protect, createReport);
 //View & filter reports
 router.get("/", protect, getReports);
 
+<<<<<<< HEAD
 router.get("/my-reports", protect, getMyReports);
 
+=======
+>>>>>>> 8bce1f748f96d000c186b273ded77e87083b855d
 //get all authorities (admin only)
 router.get("/authorities", protect, authorizeRoles("admin"), 
 async (req, res) => {
