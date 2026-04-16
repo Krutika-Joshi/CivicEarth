@@ -6,26 +6,177 @@ const decideAuthority = require("../utils/authorityDecider");
 const calculateDeadline = require("../utils/deadlineCalculator");
 const Notification = require("../models/Notification");
 const User = require("../models/User");
+const axios = require("axios");
+const FormData = require("form-data");
+const fs = require("fs");
+
+
+
+// const createReport = async (req, res) => {
+    
+//     try{ 
+//         const {
+//                 title,
+//                 description,
+//                 category,
+//                 cause,
+//                 city,
+//                 area,
+//                 latitude,
+//                 longitude
+//                 } = req.body;
+//         const file = req.file;
+
+//         const media = file
+//         ? [
+//             {
+//                 type: "image",
+//                 url: `http://localhost:5000/uploads/${file.filename}`,
+//             },
+//             ]
+//         : [];
+
+//         if ( 
+//             !title ||
+//             !description ||
+//             !category ||
+//             !city ||
+//             !area ||
+//             latitude === undefined ||
+//             longitude === undefined
+//         ) {
+//             return res.status(400).json({
+//                 message: "All required fields must be provided"
+//             });
+//         }
+
+//         // if(!media || !Array.isArray(media) || media.length === 0) {
+//         //     return res.status(400).json({
+//         //         message: "At least one image or video is required"
+//         //     });
+//         // }
+
+//         // for (let item of media){
+//         //     if(!item.type || !item.url){
+//         //         return res.status(400).json({
+//         //             message: "Each media item must have type and url"
+//         //         });
+//         //     }
+//         // }
+
+//         const report = await Report.create({
+//             title,
+//             description,
+//             category,
+//             cause,
+//             city,
+//             area,
+//             latitude,
+//             longitude,
+//             media,
+//             reportedBy: req.user.id,
+//             displayName: req.user.displayName,
+//             status: "submitted",
+//             statusHistory: [
+//                 {
+//                     from: null,
+//                     to: "submitted",
+//                     changedBy: req.user.id,
+//                     changedAt: new Date()
+//                 }
+//             ]
+//         });
+
+//         res.status(201).json({
+//             message: "Report created successfully",
+//             report
+//         });
+
+
+//     } catch(error) {
+//         res.status(500).json({
+//             message: "Server error",
+//             error: error.message
+//         });
+//     }
+// };
+
+function getSimilarity(text1, text2) {
+    const words1 = text1.toLowerCase().split(" ");
+    const words2 = text2.toLowerCase().split(" ");
+
+    const set1 = new Set(words1);
+    const set2 = new Set(words2);
+
+    const intersection = new Set([...set1].filter(x => set2.has(x)));
+
+    return intersection.size / Math.max(set1.size, set2.size);
+}
 
 
 const createReport = async (req, res) => {
-    try{ 
+    try { 
         const {
             title,
             description,
-            category,
             cause,
             city,
             area,
             latitude,
-            longitude,
-            media
+            longitude
         } = req.body;
 
-        if ( 
+        const file = req.file;
+
+        if (!file) {
+            return res.status(400).json({
+                message: "Image is required for AI classification"
+            });
+        }
+
+        //  Send image to ML API
+        const formData = new FormData();
+        formData.append("image", fs.createReadStream(file.path));
+
+        let aiCategory = "other";
+        if (file.mimetype.startsWith("image")) {
+            const formData = new FormData();
+            formData.append("image", fs.createReadStream(file.path));
+
+            try {
+                const mlResponse = await axios.post(
+                    "http://localhost:5001/predict",
+                    formData,
+                    {
+                        headers: {
+                            ...formData.getHeaders(),
+                        },
+                        timeout: 5000 // 5 seconds safety
+                    }
+                );
+
+                    aiCategory = mlResponse.data.category;
+                } catch (err) {
+                    console.error("ML API error:", err.message);
+                }
+        }
+        //If video → skip ML
+        else if (file.mimetype.startsWith("video")) {
+            aiCategory = "other"; // or let user choose
+        }
+
+        // Media
+        const media = [
+            {
+                type: file.mimetype.startsWith("video") ? "video" : "image",
+                url: `http://localhost:5000/uploads/${file.filename}`,
+            },
+        ];
+
+        // Validation
+        if (
             !title ||
             !description ||
-            !category ||
             !city ||
             !area ||
             latitude === undefined ||
@@ -36,24 +187,38 @@ const createReport = async (req, res) => {
             });
         }
 
-        if(!media || !Array.isArray(media) || media.length === 0) {
-            return res.status(400).json({
-                message: "At least one image or video is required"
-            });
-        }
+        // DUPLICATE CHECK
+        const existingReports = await Report.find({
+            city,
+            area,
+            category: aiCategory
+        });
 
-        for (let item of media){
-            if(!item.type || !item.url){
-                return res.status(400).json({
-                    message: "Each media item must have type and url"
-                });
+        let isDuplicate = false;
+        let duplicateReport = null;
+
+        for (let report of existingReports) {
+            const similarity = getSimilarity(description, report.description);
+
+            if (similarity > 0.7) {
+                isDuplicate = true;
+                duplicateReport = report;
+                break;
             }
         }
 
+        if (isDuplicate) {
+            return res.status(409).json({
+                message: "Duplicate complaint already exists",
+                existingReport: duplicateReport
+            });
+        }
+
+        //  Use AI category instead of user input
         const report = await Report.create({
             title,
             description,
-            category,
+            category: aiCategory, // AI-powered
             cause,
             city,
             area,
@@ -78,8 +243,7 @@ const createReport = async (req, res) => {
             report
         });
 
-
-    } catch(error) {
+    } catch (error) {
         res.status(500).json({
             message: "Server error",
             error: error.message

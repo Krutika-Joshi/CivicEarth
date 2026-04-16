@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const upload = require("../config/multer");
 
 const { protect, authorizeRoles }  = require("../middlewares/authMiddleware");
 const { createReport, 
@@ -11,13 +12,12 @@ const { createReport,
         getAssignedReportsForAuthority,
         getReportStats,
         getCategoryStats,
-        getMyReports,
-        getCategoryStats } = require("../controllers/reportController");
+        getMyReports} = require("../controllers/reportController");
         
 const Authority = require("../models/Authority");
 
 //Create report
-router.post("/", protect, createReport);
+router.post("/", protect, upload.single("media"), createReport);
 
 //View & filter reports
 router.get("/", protect, getReports);
