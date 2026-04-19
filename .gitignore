@@ -1,12 +1,25 @@
 # Node
 node_modules/
+dist/
+build/
 
 # Python
 venv/
 __pycache__/
+*.pyc
+
+# ML models (IMPORTANT)
+*.pkl
+*.joblib
+*.h5
 
 # Env files
 .env
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # OS files
 .DS_Store
