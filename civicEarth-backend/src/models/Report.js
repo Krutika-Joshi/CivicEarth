@@ -91,8 +91,18 @@ const reportSchema = new mongoose.Schema(
             ref: "Authority",
             default: null
         },
+        priority: {
+            type: String,
+            enum: ["low", "medium", "high"],
+            default: "low"
+            },
         deadline: {
             type: Date
+        },
+        response: {
+        text: String,
+        images: [String], // URLs of uploaded proof images
+        respondedAt: Date
         },
         escalated: {
             type: Boolean,
@@ -126,6 +136,7 @@ const reportSchema = new mongoose.Schema(
                         },
                         ],
     },
+    
     {
         timestamps: true
     }

@@ -4,28 +4,28 @@ const jwt = require("jsonwebtoken");
 const protect = async (req, res, next) => {
     let token;
 
-    //check for the token in the header
     if (
-        req.headers.authorization && 
+        req.headers.authorization &&
         req.headers.authorization.startsWith("Bearer")
     ) {
-        token = req.headers.authorization.split(" ")[1];
+        const authHeader = req.headers.authorization;
+        token = authHeader.split(" ")[1];
     }
 
-    // If no token, block access
-    if(!token) {
+    if (!token) {
         return res.status(401).json({
             message: "Not authorized, token missing"
         });
     }
 
     try {
-        //Verify the token
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        const user = await User.findById(decoded.id).select("_id role displayName authorityId");
+        const user = await User.findById(decoded.id).select(
+            "_id role displayName authorityId"
+        );
 
-        if(!user){
+        if (!user) {
             return res.status(401).json({
                 message: "User not found"
             });
@@ -38,10 +38,12 @@ const protect = async (req, res, next) => {
             authorityId: user.authorityId
         };
 
+        // 🔥 optional debug
+        // console.log("User:", req.user);
 
-        //Continue to next middleware/controller
         next();
-    } catch(error){
+
+    } catch (error) {
         return res.status(401).json({
             message: "Not authorized, token invalid"
         });
@@ -50,7 +52,7 @@ const protect = async (req, res, next) => {
 
 const authorizeRoles = (...roles) => {
     return (req, res, next) => {
-        if(!roles.includes(req.user.role)) {
+        if (!req.user || !roles.includes(req.user.role)) {
             return res.status(403).json({
                 message: "Access denied"
             });

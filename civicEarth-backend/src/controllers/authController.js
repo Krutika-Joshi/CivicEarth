@@ -3,45 +3,41 @@ const User = require("../models/User");
 const generateDisplayName = require("../utils/generateDisplayName");
 const jwt = require("jsonwebtoken");
 
-
+// ================= REGISTER =================
 const registerUser = async (req, res) => {
     try {
-        const { name, email, password, city } = req.body;
+        let { name, email, password, city } = req.body;
+
         email = email.toLowerCase();
 
-        //Checking if the data is missing
-        if(!name || !email || !password || !city) {
+        if (!name || !email || !password || !city) {
             return res.status(400).json({
                 message: "All fields are required"
             });
         }
 
-        //If user exists
         const existingUser = await User.findOne({ email });
 
-       if (existingUser) {
-        return res.status(400).json({
-            message: "User already exists"
-        });
+        if (existingUser) {
+            return res.status(400).json({
+                message: "User already exists"
+            });
         }
-        //Hash password 
+
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        //Generate anonymous display name 
         const displayName = generateDisplayName(city);
 
-
-        //Create user
         const user = await User.create({
             name,
             email,
             password: hashedPassword,
             city,
-            displayName
+            displayName,
+            role: "user" // ✅ FIXED
         });
 
-        //Send response
         res.status(201).json({
             message: "User registered successfully",
             user: {
@@ -53,38 +49,35 @@ const registerUser = async (req, res) => {
                 role: user.role
             }
         });
+
     } catch (error) {
         res.status(500).json({
-            messgae:"server error",
+            message: "server error",
             error: error.message
         });
     }
-    
 };
 
+
+// ================= LOGIN =================
 const loginUser = async (req, res) => {
     try {
-        //read input
         const { email, password } = req.body;
 
-        if(!email || !password) {
+        if (!email || !password) {
             return res.status(400).json({
                 message: "Email and Password are required"
             });
         }
 
-        //find user by email
+        const user = await User.findOne({ email });
 
-        const user = await User.findOne({email});
-
-        if(!user) {
+        if (!user) {
             return res.status(400).json({
                 message: "Invalid email or password"
             });
         }
 
-
-        //Compare password
         const isMatch = await bcrypt.compare(password, user.password);
 
         if (!isMatch) {
@@ -105,8 +98,7 @@ const loginUser = async (req, res) => {
             }
         );
 
-
-      res.status(200).json({
+        res.status(200).json({
             message: "Login Successful",
             token,
             user: {
@@ -115,10 +107,10 @@ const loginUser = async (req, res) => {
                 email: user.email,
                 city: user.city,
                 displayName: user.displayName,
-                role: user.role
+                role: user.role,
+                authorityId: user.authorityId || null // ✅ added
             }
         });
-
 
     } catch (error) {
         res.status(500).json({
@@ -128,4 +120,4 @@ const loginUser = async (req, res) => {
     }
 };
 
-module.exports = { registerUser, loginUser};
+module.exports = { registerUser, loginUser };

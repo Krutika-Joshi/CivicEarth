@@ -11,95 +11,23 @@ const FormData = require("form-data");
 const fs = require("fs");
 
 
+const calculatePriority = (report) => {
+  const text = (report.title + " " + report.description).toLowerCase();
 
-// const createReport = async (req, res) => {
-    
-//     try{ 
-//         const {
-//                 title,
-//                 description,
-//                 category,
-//                 cause,
-//                 city,
-//                 area,
-//                 latitude,
-//                 longitude
-//                 } = req.body;
-//         const file = req.file;
+  if (
+    text.includes("fire") ||
+    text.includes("accident") ||
+    text.includes("flood")
+  ) {
+    return "high";
+  }
 
-//         const media = file
-//         ? [
-//             {
-//                 type: "image",
-//                 url: `http://localhost:5000/uploads/${file.filename}`,
-//             },
-//             ]
-//         : [];
+  if (report.category === "road" || report.category === "water") {
+    return "medium";
+  }
 
-//         if ( 
-//             !title ||
-//             !description ||
-//             !category ||
-//             !city ||
-//             !area ||
-//             latitude === undefined ||
-//             longitude === undefined
-//         ) {
-//             return res.status(400).json({
-//                 message: "All required fields must be provided"
-//             });
-//         }
-
-//         // if(!media || !Array.isArray(media) || media.length === 0) {
-//         //     return res.status(400).json({
-//         //         message: "At least one image or video is required"
-//         //     });
-//         // }
-
-//         // for (let item of media){
-//         //     if(!item.type || !item.url){
-//         //         return res.status(400).json({
-//         //             message: "Each media item must have type and url"
-//         //         });
-//         //     }
-//         // }
-
-//         const report = await Report.create({
-//             title,
-//             description,
-//             category,
-//             cause,
-//             city,
-//             area,
-//             latitude,
-//             longitude,
-//             media,
-//             reportedBy: req.user.id,
-//             displayName: req.user.displayName,
-//             status: "submitted",
-//             statusHistory: [
-//                 {
-//                     from: null,
-//                     to: "submitted",
-//                     changedBy: req.user.id,
-//                     changedAt: new Date()
-//                 }
-//             ]
-//         });
-
-//         res.status(201).json({
-//             message: "Report created successfully",
-//             report
-//         });
-
-
-//     } catch(error) {
-//         res.status(500).json({
-//             message: "Server error",
-//             error: error.message
-//         });
-//     }
-// };
+  return "low";
+};
 
 function getSimilarity(text1, text2) {
     const words1 = text1.toLowerCase().split(" ");
@@ -209,16 +137,17 @@ const createReport = async (req, res) => {
 
         if (isDuplicate) {
             return res.status(409).json({
-                message: "Duplicate complaint already exists",
-                existingReport: duplicateReport
+            message: "Duplicate complaint already exists",
+            duplicate: true,
+            existingReport: duplicateReport
             });
         }
 
         //  Use AI category instead of user input
-        const report = await Report.create({
+        const newReportData = {
             title,
             description,
-            category: aiCategory, // AI-powered
+            category: aiCategory,
             cause,
             city,
             area,
@@ -236,12 +165,16 @@ const createReport = async (req, res) => {
                     changedAt: new Date()
                 }
             ]
-        });
+        };
 
-        res.status(201).json({
-            message: "Report created successfully",
-            report
-        });
+        // 🔥 ADD PRIORITY HERE
+        newReportData.priority = calculatePriority(newReportData);
+
+        const report = await Report.create(newReportData);
+                res.status(201).json({
+                    message: "Report created successfully",
+                    report
+                });
 
     } catch (error) {
         res.status(500).json({
@@ -581,27 +514,33 @@ const manualAssignAuthority = async (req, res) => {
 // Authority dashboard – view assigned reports
 const getAssignedReportsForAuthority = async (req, res) => {
   try {
-    // only authority can access
-    if (req.user.role !== "authority") {
-      return res.status(403).json({
-        message: "Access denied"
+    const authority = await Authority.findById(req.user.authorityId);
+
+    if (!authority) {
+      return res.status(404).json({
+        message: "Authority not found"
       });
     }
 
     const reports = await Report.find({
-      assignedAuthority: req.user.authorityId
-    }).sort({ createdAt: -1 });
-
-    
-    // console.log("AUTH USER authorityId:", req.user.authorityId);
-    // console.log("TYPE of authorityId:", typeof req.user.authorityId);
+        $or: [
+            { assignedAuthority: req.user.authorityId },
+            {
+            escalated: true,
+            city: authority.jurisdiction,
+            category: authority.type
+            }
+        ]
+        })
+        .populate("reportedBy", "displayName")
+        .populate("assignedAuthority", "name type jurisdiction") // 🔥 ADD THIS
+        .sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
       total: reports.length,
       reports
     });
-
 
   } catch (error) {
     res.status(500).json({
@@ -676,6 +615,77 @@ const getCategoryStats = async (req, res) => {
   }
 };
 
+const addAuthorityResponse = async (req, res) => {
+  try {
+    const { text } = req.body;
+
+    if (!req.file) {
+      return res.status(400).json({
+        message: "Proof image is required"
+      });
+    }
+
+    const report = await Report.findById(req.params.id);
+
+    if (!report) {
+      return res.status(404).json({
+        message: "Report not found"
+      });
+    }
+
+    // 🔒 Only assigned authority can respond
+    // TEMP FIX (for your project)
+        if (!req.user.authorityId) {
+        return res.status(403).json({ message: "Not allowed" });
+        }
+
+
+    if (!text || text.trim() === "") {
+        return res.status(400).json({
+            message: "Response text is required"
+        });
+        }
+
+        //  Prevent duplicate response
+        if (report.response && report.response.images?.length > 0) {
+        return res.status(400).json({
+            message: "Response already submitted"
+        });
+        }
+
+        report.response = {
+        text: text.trim(),
+        images: [
+            `http://localhost:5000/uploads/${req.file.filename}`
+        ],
+        respondedAt: new Date()
+        };
+
+        // 🔥 AUTO RESOLVE AFTER RESPONSE
+        report.statusHistory.push({
+        from: report.status,
+        to: "resolved",
+        changedBy: req.user.id,
+        changedAt: new Date()
+        });
+
+        report.status = "resolved";
+        report.resolvedAt = new Date();
+
+    await report.save();
+
+    res.status(200).json({
+      message: "Response submitted successfully",
+      report
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      message: err.message
+    });
+  }
+};
+
 module.exports = { createReport, 
                     getReports, 
                     getSingleReport, 
@@ -686,5 +696,6 @@ module.exports = { createReport,
                     getReportStats,
                     getCategoryStats,
                     getMyReports,
-                    getCategoryStats };
+                    calculatePriority,
+                    addAuthorityResponse };
 

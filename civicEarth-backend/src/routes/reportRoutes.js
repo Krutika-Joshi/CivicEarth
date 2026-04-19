@@ -13,7 +13,8 @@ const { createReport,
         getAssignedReportsForAuthority,
         getReportStats,
         getCategoryStats,
-        getMyReports} = require("../controllers/reportController");
+        getMyReports,
+        addAuthorityResponse} = require("../controllers/reportController");
         
 const Authority = require("../models/Authority");
 
@@ -152,6 +153,14 @@ router.put("/:reportId/comment/:commentId/like", protect, async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
+
+router.post(
+  "/:id/respond",
+  protect,
+  authorizeRoles("authority"),
+  upload.single("image"),
+  addAuthorityResponse
+);
 
 
 module.exports = router;
