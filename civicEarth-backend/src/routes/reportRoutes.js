@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const upload = require("../config/multer");
+const Report = require("../models/Report");
 
 const { protect, authorizeRoles }  = require("../middlewares/authMiddleware");
 const { createReport, 
@@ -60,6 +61,97 @@ router.post("/:id/assign", protect, authorizeRoles("admin", "moderator"), assign
 //manual assignment
 router.post("/:id/manual-assign", protect, authorizeRoles("admin", "moderator"), manualAssignAuthority);
 
+// ❤️ LIKE
+router.put("/:id/like", protect, async (req, res) => {
+  try {
+    const report = await Report.findById(req.params.id);
+
+    if (!report) {
+      return res.status(404).json({ message: "Report not found" });
+    }
+
+    const userId = req.user.id;
+
+    if (report.likes.includes(userId)) {
+      report.likes = report.likes.filter(
+        (id) => id.toString() !== userId
+      );
+    } else {
+      report.likes.push(userId);
+    }
+
+    await report.save();
+
+    res.json(report);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// 💬 COMMENT
+router.post("/:id/comment", protect, async (req, res) => {
+  try {
+    const { text } = req.body;
+
+    const report = await Report.findById(req.params.id);
+
+    if (!report) {
+      return res.status(404).json({ message: "Report not found" });
+    }
+
+    report.comments.push({
+      user: req.user.id,
+      displayName: req.user.displayName,
+      text
+    });
+
+    await report.save();
+
+    res.json(report);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ❤️ LIKE COMMENT
+router.put("/:reportId/comment/:commentId/like", protect, async (req, res) => {
+  try {
+    const report = await Report.findById(req.params.reportId);
+
+    if (!report) {
+      return res.status(404).json({ message: "Report not found" });
+    }
+
+    const comment = report.comments.id(req.params.commentId);
+
+    if (!comment) {
+      return res.status(404).json({ message: "Comment not found" });
+    }
+
+    const userId = req.user.id;
+
+    // ✅ FIXED CHECK
+    const alreadyLiked = comment.likes.some(
+      (id) => id.toString() === userId
+    );
+
+    if (alreadyLiked) {
+      // ❌ REMOVE LIKE
+      comment.likes = comment.likes.filter(
+        (id) => id.toString() !== userId
+      );
+    } else {
+      // ❤️ ADD LIKE
+      comment.likes.push(userId);
+    }
+
+    await report.save();
+
+    res.json(report);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 
 
 module.exports = router;

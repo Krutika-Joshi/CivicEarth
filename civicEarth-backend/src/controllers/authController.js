@@ -7,6 +7,7 @@ const jwt = require("jsonwebtoken");
 const registerUser = async (req, res) => {
     try {
         const { name, email, password, city } = req.body;
+        email = email.toLowerCase();
 
         //Checking if the data is missing
         if(!name || !email || !password || !city) {
@@ -18,12 +19,11 @@ const registerUser = async (req, res) => {
         //If user exists
         const existingUser = await User.findOne({ email });
 
-        if(existingUser) {
-            return res.status(400).json({
-                message: "User already exists"
-            });
+       if (existingUser) {
+        return res.status(400).json({
+            message: "User already exists"
+        });
         }
-
         //Hash password 
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
@@ -43,11 +43,14 @@ const registerUser = async (req, res) => {
 
         //Send response
         res.status(201).json({
-            messgae: "User registered successfully",
+            message: "User registered successfully",
             user: {
                 id: user._id,
+                name: user.name,
+                email: user.email,
+                city: user.city,
                 displayName: user.displayName,
-                city: user.city
+                role: user.role
             }
         });
     } catch (error) {
@@ -103,17 +106,18 @@ const loginUser = async (req, res) => {
         );
 
 
-        res.status(200).json({
+      res.status(200).json({
             message: "Login Successful",
             token,
             user: {
                 id: user._id,
-                displayName: user.displayName,
+                name: user.name,
+                email: user.email,
                 city: user.city,
+                displayName: user.displayName,
                 role: user.role
             }
         });
-
 
 
     } catch (error) {

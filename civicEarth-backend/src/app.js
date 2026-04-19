@@ -7,6 +7,7 @@ const escalateReports = require("./services/escalationService");
 const notificationRoutes = require("./routes/notificationRoutes");
 const cors = require("cors");
 const path = require("path");
+const userRoutes = require("./routes/userRoutes");
 
 
 const app = express();
@@ -28,6 +29,8 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authRoutes);
 // app.use("/api/test", testRoutes);
 app.use("/api/reports", reportRoutes);
+
+app.use("/api/user", userRoutes);
 
 app.use("/api/notifications", notificationRoutes);
 
