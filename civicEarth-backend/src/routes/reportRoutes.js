@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const upload = require("../config/multer");
+// const upload = require("../config/multer");
 const Report = require("../models/Report");
+const upload = require("../middleware/upload");
 
 const { protect, authorizeRoles }  = require("../middlewares/authMiddleware");
 const { createReport, 

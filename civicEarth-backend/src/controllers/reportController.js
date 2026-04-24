@@ -85,7 +85,7 @@ const createReport = async (req, res) => {
     if (file.mimetype.startsWith("image")) {
       const formData = new FormData();
       if (file.path) {
-          formData.append("image", fs.createReadStream(file.path));
+          formData.append("image", file.buffer);
         } else {
           formData.append("image", file.buffer, file.originalname);
         }
@@ -130,7 +130,7 @@ const createReport = async (req, res) => {
     const media = [
       {
         type: file.mimetype.startsWith("video") ? "video" : "image",
-        url: `${process.env.BASE_URL}/uploads/${file.filename}`
+        url: file.path   // 🔥 Cloudinary URL
       },
     ];
 
@@ -709,6 +709,7 @@ const getCategoryStats = async (req, res) => {
 
 const addAuthorityResponse = async (req, res) => {
   try {
+    console.log("FILE DATA:", req.file); 
     const { text } = req.body;
 
     if (!req.file) {
@@ -766,7 +767,7 @@ const addAuthorityResponse = async (req, res) => {
         report.response = {
         text: text.trim(),
         images: [
-           `${process.env.BASE_URL}/uploads/${req.file.filename}`
+          req.file.path   // 🔥 Cloudinary URL
         ],
         respondedAt: new Date()
         };
