@@ -99,7 +99,7 @@ const createReport = async (req, res) => {
             headers: {
               ...formData.getHeaders(),
             },
-            timeout: 20000
+            timeout: 60000
           }
         );
 
