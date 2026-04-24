@@ -3,13 +3,18 @@ from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2, preprocess_i
 from tensorflow.keras.preprocessing import image
 import numpy as np
 import io
-import os
 import json
+
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # Suppresses INFO and WARNING logs
+
 
 app = Flask(__name__)
 
 # ✅ Load model once
 model = MobileNetV2(weights='imagenet')
+print("✅ Model loaded and service ready!")
+
 
 
 @app.route('/')
