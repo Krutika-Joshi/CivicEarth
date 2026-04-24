@@ -24,12 +24,9 @@ const escalateReports = async () => {
 
             const currentAuthority = report.assignedAuthority;
 
-            // Find higher authority (level + 1)
+            // ✅ Find higher authority (level + 1)
             const higherAuthority = await Authority.findOne({
                 type: currentAuthority.type,
-                jurisdiction: { 
-                $regex: new RegExp(`^${report.city.trim()}$`, "i") 
-                },
                 level: currentAuthority.level + 1
             });
 
@@ -38,47 +35,53 @@ const escalateReports = async () => {
                 continue;
             }
 
-            // Update report
+            console.log("Found higher authority:", higherAuthority.name);
+
+            // ✅ Update report assignment
             report.assignedAuthority = higherAuthority._id;
             report.escalated = true;
-            
-            // Notify higher authority
+
+            // ✅ Update status properly
+            const previousStatus = report.status;
+            report.status = "escalated";
+
+            // ✅ Notify higher authority user
             const authorityUser = await User.findOne({
-            authorityId: higherAuthority._id
+                authorityId: higherAuthority._id
             });
 
-            if (!authorityUser) continue;
+            if (!authorityUser) {
+                console.log("No user found for authority:", higherAuthority._id);
+            } else {
+                // Check if notification already exists
+                const existingNotification = await Notification.findOne({
+                    user: authorityUser._id,
+                    message: `Report escalated: ${report.title}`,
+                    type: "escalation"
+                });
 
-            // Check if notification already exists
-            const existingNotification = await Notification.findOne({
-            user: authorityUser._id,
-            message: `Report escalated: ${report.title}`,
-            type: "escalation"
-            });
+                if (!existingNotification) {
+                    const notification = await Notification.create({
+                        user: authorityUser._id,
+                        message: `Report escalated: ${report.title}`,
+                        type: "escalation"
+                    });
 
-            if (!existingNotification) {
-            const notification = await Notification.create({
-                user: authorityUser._id,
-                message: `Report escalated: ${report.title}`,
-                type: "escalation"
-            });
-
-            console.log("Escalation notification created:", notification);
+                    console.log("Escalation notification created:", notification);
+                }
             }
-            
-        
-    
 
-            // Add history
+            // ✅ Add proper history
             report.statusHistory.push({
-                from: report.status,
-                to: report.status,
+                from: previousStatus,
+                to: "escalated",
                 changedBy: null, // system action
                 changedAt: new Date()
             });
 
             await report.save();
 
+            // ✅ Debug logs
             console.log("ESCALATION DEBUG:");
             console.log("CITY:", report.city);
             console.log("TYPE:", currentAuthority.type);
