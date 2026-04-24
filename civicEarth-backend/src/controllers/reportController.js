@@ -8,7 +8,7 @@ const Notification = require("../models/Notification");
 const User = require("../models/User");
 const axios = require("axios");
 const FormData = require("form-data");
-const fs = require("fs");
+// const fs = require("fs");
 
 const mapCategoryToAuthorityType = (category) => {
   switch (category) {
@@ -84,11 +84,12 @@ const createReport = async (req, res) => {
 
     if (file.mimetype.startsWith("image")) {
       const formData = new FormData();
-      if (file.path) {
-          formData.append("image", file.buffer);
-        } else {
-          formData.append("image", file.buffer, file.originalname);
-        }
+      // if (file.path) {
+      //     formData.append("image", file.buffer);
+      //   } else {
+      //     formData.append("image", file.buffer, file.originalname);
+      //   }
+      formData.append("image", file.path);  // 🔥 Cloudinary URL
       formData.append("title", JSON.stringify(title));
 
       try {
