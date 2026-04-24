@@ -27,7 +27,9 @@ const escalateReports = async () => {
             // Find higher authority (level + 1)
             const higherAuthority = await Authority.findOne({
                 type: currentAuthority.type,
-                jurisdiction: report.city,
+                jurisdiction: { 
+                $regex: new RegExp(`^${report.city.trim()}$`, "i") 
+                },
                 level: currentAuthority.level + 1
             });
 
@@ -76,6 +78,12 @@ const escalateReports = async () => {
             });
 
             await report.save();
+
+            console.log("ESCALATION DEBUG:");
+            console.log("CITY:", report.city);
+            console.log("TYPE:", currentAuthority.type);
+            console.log("CURRENT LEVEL:", currentAuthority.level);
+            console.log("NEXT LEVEL:", currentAuthority.level + 1);
 
             console.log(`Report ${report._id} escalated to level ${higherAuthority.level}`);
         }

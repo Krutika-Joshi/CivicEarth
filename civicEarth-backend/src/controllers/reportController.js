@@ -10,6 +10,21 @@ const axios = require("axios");
 const FormData = require("form-data");
 const fs = require("fs");
 
+const mapCategoryToAuthorityType = (category) => {
+  switch (category) {
+    case "garbage":
+      return "municipal";
+    case "water":
+    case "air":
+      return "pollution_board";
+    case "road":
+      return "road";
+    case "noise":
+      return "police";
+    default:
+      return "general";
+  }
+};
 
 const calculatePriority = (report) => {
   const text = (report.title + " " + report.description).toLowerCase();
@@ -43,145 +58,187 @@ function getSimilarity(text1, text2) {
 
 
 const createReport = async (req, res) => {
-    try { 
-        const {
-            title,
-            description,
-            cause,
-            city,
-            area,
-            latitude,
-            longitude
-        } = req.body;
+  try {
+    const {
+      title,
+      description,
+      cause,
+      city,
+      area,
+      latitude,
+      longitude
+    } = req.body;
 
-        const file = req.file;
+    const file = req.file;
 
-        if (!file) {
-            return res.status(400).json({
-                message: "Image is required for AI classification"
-            });
-        }
-
-        //  Send image to ML API
-        const formData = new FormData();
-        formData.append("image", fs.createReadStream(file.path));
-
-        let aiCategory = "other";
-        if (file.mimetype.startsWith("image")) {
-            const formData = new FormData();
-            formData.append("image", fs.createReadStream(file.path));
-
-            try {
-                const mlResponse = await axios.post(
-                    "http://localhost:5001/predict",
-                    formData,
-                    {
-                        headers: {
-                            ...formData.getHeaders(),
-                        },
-                        timeout: 5000 // 5 seconds safety
-                    }
-                );
-
-                    aiCategory = mlResponse.data.category;
-                } catch (err) {
-                    console.error("ML API error:", err.message);
-                }
-        }
-        //If video → skip ML
-        else if (file.mimetype.startsWith("video")) {
-            aiCategory = "other"; // or let user choose
-        }
-
-        // Media
-        const media = [
-            {
-                type: file.mimetype.startsWith("video") ? "video" : "image",
-                url: `http://localhost:5000/uploads/${file.filename}`,
-            },
-        ];
-
-        // Validation
-        if (
-            !title ||
-            !description ||
-            !city ||
-            !area ||
-            latitude === undefined ||
-            longitude === undefined
-        ) {
-            return res.status(400).json({
-                message: "All required fields must be provided"
-            });
-        }
-
-        // DUPLICATE CHECK
-        const existingReports = await Report.find({
-            city,
-            area,
-            category: aiCategory
-        });
-
-        let isDuplicate = false;
-        let duplicateReport = null;
-
-        for (let report of existingReports) {
-            const similarity = getSimilarity(description, report.description);
-
-            if (similarity > 0.7) {
-                isDuplicate = true;
-                duplicateReport = report;
-                break;
-            }
-        }
-
-        if (isDuplicate) {
-            return res.status(409).json({
-            message: "Duplicate complaint already exists",
-            duplicate: true,
-            existingReport: duplicateReport
-            });
-        }
-
-        //  Use AI category instead of user input
-        const newReportData = {
-            title,
-            description,
-            category: aiCategory,
-            cause,
-            city,
-            area,
-            latitude,
-            longitude,
-            media,
-            reportedBy: req.user.id,
-            displayName: req.user.displayName,
-            status: "submitted",
-            statusHistory: [
-                {
-                    from: null,
-                    to: "submitted",
-                    changedBy: req.user.id,
-                    changedAt: new Date()
-                }
-            ]
-        };
-
-        // 🔥 ADD PRIORITY HERE
-        newReportData.priority = calculatePriority(newReportData);
-
-        const report = await Report.create(newReportData);
-                res.status(201).json({
-                    message: "Report created successfully",
-                    report
-                });
-
-    } catch (error) {
-        res.status(500).json({
-            message: "Server error",
-            error: error.message
-        });
+    if (!file) {
+      return res.status(400).json({
+        message: "Image is required for AI classification"
+      });
     }
+
+    // =========================
+    // 🔥 ML CLASSIFICATION
+    // =========================
+    let aiCategory = "other";
+
+    if (file.mimetype.startsWith("image")) {
+      const formData = new FormData();
+      formData.append("image", fs.createReadStream(file.path));
+      formData.append("title", JSON.stringify(title));
+
+      try {
+        const mlResponse = await axios.post(
+          "http://localhost:5001/predict",
+          formData,
+          {
+            headers: {
+              ...formData.getHeaders(),
+            },
+            timeout: 20000
+          }
+        );
+
+        console.log("ML API Response:", mlResponse.data);
+        aiCategory = mlResponse.data.category;
+
+      } catch (err) {
+        console.error("ML API error:", err.message);
+        aiCategory = "other";
+      }
+    }
+
+    // =========================
+    // 🔥 MEDIA
+    // =========================
+    const media = [
+      {
+        type: file.mimetype.startsWith("video") ? "video" : "image",
+        url: `http://localhost:5000/uploads/${file.filename}`,
+      },
+    ];
+
+    // =========================
+    // 🔥 VALIDATION
+    // =========================
+    if (
+      !title ||
+      !description ||
+      !city ||
+      !area ||
+      latitude === undefined ||
+      longitude === undefined
+    ) {
+      return res.status(400).json({
+        message: "All required fields must be provided"
+      });
+    }
+
+    // =========================
+    // 🔥 DUPLICATE CHECK
+    // =========================
+    const existingReports = await Report.find({
+      city,
+      area,
+      category: aiCategory
+    });
+
+    for (let report of existingReports) {
+      const similarity = getSimilarity(description, report.description);
+      if (similarity > 0.7) {
+        return res.status(409).json({
+          message: "Duplicate complaint already exists",
+          duplicate: true,
+          existingReport: report
+        });
+      }
+    }
+
+    // =========================
+    // 🔥 CREATE REPORT
+    // =========================
+    const newReportData = {
+      title,
+      description,
+      category: aiCategory,
+      cause,
+      city,
+      area,
+      latitude,
+      longitude,
+      media,
+      reportedBy: req.user.id,
+      displayName: req.user.displayName,
+      status: "submitted",
+      statusHistory: [
+        {
+          from: null,
+          to: "submitted",
+          changedBy: req.user.id,
+          changedAt: new Date()
+        }
+      ]
+    };
+
+    newReportData.priority = calculatePriority(newReportData);
+
+    const report = await Report.create(newReportData);
+
+    // =========================
+    // 🔥 AUTO ASSIGN AUTHORITY
+    // =========================
+   const authorityType = mapCategoryToAuthorityType(report.category);
+
+    if (authorityType) {
+    const cleanCity = report.city.trim().toLowerCase();
+      const authority = await Authority.findOne({
+        type: authorityType,
+        jurisdiction: {
+            $regex: new RegExp(`^${cleanCity}$`, "i")
+        },
+        level: 1
+        });
+      if (authority) {
+        report.assignedAuthority = authority._id;
+        report.status = "assigned";
+        report.level = 1;   // 🔥 IMPORTANT FIX
+
+        report.statusHistory.push({
+          from: "submitted",
+          to: "assigned",
+          changedBy: req.user.id,
+          changedAt: new Date()
+        });
+
+        report.deadline = calculateDeadline(report.category);
+
+        await report.save();
+
+        // console.log("CITY RAW:", report.city);
+        // console.log("CITY CLEAN:", cleanCity);
+        // console.log("TYPE:", authorityType);
+
+        console.log("REPORT CITY:", report.city);
+        console.log("✅ AUTO ASSIGNED TO:", authority.name);
+      } else {
+        console.log("❌ No matching authority found");
+      }
+    }
+
+    // =========================
+    // 🔥 RESPONSE
+    // =========================
+    res.status(201).json({
+      message: "Report created successfully",
+      report
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: "Server error",
+      error: error.message
+    });
+  }
 };
 
 const getMyReports = async (req, res) => {
@@ -311,16 +368,31 @@ const updateReportStatus = async(req, res) => {
             });
         }
 
-        //  Restrict authority to only their reports
-        if (
-        req.user.role === "authority" &&
-        (!report.assignedAuthority ||
-            report.assignedAuthority.toString() !== req.user.authorityId.toString())
-        ) {
+        if (!req.user.authorityId) {
         return res.status(403).json({
-            message: "You can only update your assigned reports"
+            message: "Invalid authority user"
         });
         }
+        //  Restrict authority to only their reports
+        if (req.user.role === "authority") {
+                const isAssigned =
+                    report.assignedAuthority &&
+                    report.assignedAuthority.toString() === req.user.authorityId.toString();
+
+                const authority = await Authority.findById(req.user.authorityId);
+
+                const isEscalatedAuthority =
+                    report.escalated &&
+                    authority &&
+                    authority.jurisdiction.toLowerCase() === report.city.toLowerCase() &&
+                    authority.type === mapCategoryToAuthorityType(report.category);
+
+                if (!isAssigned && !isEscalatedAuthority) {
+                    return res.status(403).json({
+                    message: "You are not authorized to update this report"
+                    });
+                }
+                }
 
         // validate transition
         const isValid = validateStatusTransition(report.status, status);
@@ -335,9 +407,11 @@ const updateReportStatus = async(req, res) => {
             report.assignedAt = new Date();
         }
 
-        if(status === "resolved") {
-            report.resolvedAt = new Date();
-        }
+        if (status === "resolved") {
+            return res.status(400).json({
+                message: "Please submit response before resolving"
+            });
+            }
 
         if(status === "rejected" && !authorityComment) {
             return res.status(400).json({
@@ -524,16 +598,18 @@ const getAssignedReportsForAuthority = async (req, res) => {
 
     const reports = await Report.find({
         $or: [
-            { assignedAuthority: req.user.authorityId },
+            {
+            assignedAuthority: new mongoose.Types.ObjectId(req.user.authorityId)
+            },
             {
             escalated: true,
-            city: authority.jurisdiction,
-            category: authority.type
+            city: { $regex: new RegExp(`^${authority.jurisdiction}$`, "i") },
+            // category: authority.type
             }
         ]
         })
         .populate("reportedBy", "displayName")
-        .populate("assignedAuthority", "name type jurisdiction") // 🔥 ADD THIS
+        .populate("assignedAuthority", "name type jurisdiction")
         .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -626,6 +702,11 @@ const addAuthorityResponse = async (req, res) => {
     }
 
     const report = await Report.findById(req.params.id);
+    if (!req.user.authorityId) {
+        return res.status(403).json({
+            message: "Invalid authority user"
+        });
+        }
 
     if (!report) {
       return res.status(404).json({
@@ -634,10 +715,23 @@ const addAuthorityResponse = async (req, res) => {
     }
 
     // 🔒 Only assigned authority can respond
-    // TEMP FIX (for your project)
-        if (!req.user.authorityId) {
-        return res.status(403).json({ message: "Not allowed" });
-        }
+    const isAssigned =
+            report.assignedAuthority &&
+            report.assignedAuthority.toString() === req.user.authorityId.toString();
+
+            const authority = await Authority.findById(req.user.authorityId);
+
+            const isEscalatedAuthority =
+            report.escalated &&
+            authority &&
+            authority.jurisdiction.toLowerCase() === report.city.toLowerCase() &&
+            authority.type === mapCategoryToAuthorityType(report.category);
+
+            if (!isAssigned && !isEscalatedAuthority) {
+            return res.status(403).json({
+                message: "You are not authorized to respond to this report"
+            });
+            }
 
 
     if (!text || text.trim() === "") {

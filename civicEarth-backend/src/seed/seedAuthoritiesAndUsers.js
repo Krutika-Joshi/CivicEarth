@@ -1,4 +1,6 @@
-require("dotenv").config();
+require("dotenv").config({
+  path: require("path").resolve(__dirname, "../../.env")
+});
 
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
@@ -17,13 +19,39 @@ const seedAuthoritiesAndUsers = async () => {
 
     const authoritiesData = [
       // ================= MUMBAI =================
-
-      // Garbage / Municipal
       {
         name: "Municipal Corporation Mumbai",
         type: "municipal",
         jurisdiction: "Mumbai",
         email: "municipal@mumbai.gov.in",
+        level: 1
+      },
+      {
+        name: "Pollution Control Board Mumbai",
+        type: "pollution_board",
+        jurisdiction: "Mumbai",
+        email: "pollution@mumbai.gov.in",
+        level: 1
+      },
+      {
+        name: "Road Department Mumbai",
+        type: "road",
+        jurisdiction: "Mumbai",
+        email: "road@mumbai.gov.in",
+        level: 1
+      },
+      {
+        name: "Police Department Mumbai",
+        type: "police",
+        jurisdiction: "Mumbai",
+        email: "police@mumbai.gov.in",
+        level: 1
+      },
+      {
+        name: "General Department Mumbai",
+        type: "general",
+        jurisdiction: "Mumbai",
+        email: "general@mumbai.gov.in",
         level: 1
       },
       {
@@ -33,30 +61,12 @@ const seedAuthoritiesAndUsers = async () => {
         email: "citymunicipal@mumbai.gov.in",
         level: 2
       },
-
-      // Water / Air
-      {
-        name: "Pollution Control Board Mumbai",
-        type: "pollution_board",
-        jurisdiction: "Mumbai",
-        email: "pollution@mumbai.gov.in",
-        level: 1
-      },
       {
         name: "State Pollution Authority Mumbai",
         type: "pollution_board",
         jurisdiction: "Mumbai",
         email: "statepollution@mumbai.gov.in",
         level: 2
-      },
-
-      // Road
-      {
-        name: "Road Department Mumbai",
-        type: "road",
-        jurisdiction: "Mumbai",
-        email: "road@mumbai.gov.in",
-        level: 1
       },
       {
         name: "City Road Authority Mumbai",
@@ -65,30 +75,12 @@ const seedAuthoritiesAndUsers = async () => {
         email: "cityroad@mumbai.gov.in",
         level: 2
       },
-
-      // Noise (Police)
-      {
-        name: "Police Department Mumbai",
-        type: "police",
-        jurisdiction: "Mumbai",
-        email: "police@mumbai.gov.in",
-        level: 1
-      },
       {
         name: "City Police Authority Mumbai",
         type: "police",
         jurisdiction: "Mumbai",
         email: "citypolice@mumbai.gov.in",
         level: 2
-      },
-
-      // Other
-      {
-        name: "General Department Mumbai",
-        type: "general",
-        jurisdiction: "Mumbai",
-        email: "general@mumbai.gov.in",
-        level: 1
       },
       {
         name: "State General Authority Mumbai",
@@ -99,8 +91,6 @@ const seedAuthoritiesAndUsers = async () => {
       },
 
       // ================= PUNE =================
-
-      // Garbage / Municipal
       {
         name: "Pune Municipal Corporation",
         type: "municipal",
@@ -109,30 +99,12 @@ const seedAuthoritiesAndUsers = async () => {
         level: 1
       },
       {
-        name: "City Municipal Authority Pune",
-        type: "municipal",
-        jurisdiction: "Pune",
-        email: "citymunicipal@pune.gov.in",
-        level: 2
-      },
-
-      // Water / Air
-      {
-        name: "Maharashtra Pollution Control Board Pune",
+        name: "Pollution Control Board Pune",
         type: "pollution_board",
         jurisdiction: "Pune",
-        email: "mpcb@maha.gov.in",
+        email: "pollution@pune.gov.in",
         level: 1
       },
-      {
-        name: "State Pollution Authority Pune",
-        type: "pollution_board",
-        jurisdiction: "Pune",
-        email: "statepollution@pune.gov.in",
-        level: 2
-      },
-
-      // Road
       {
         name: "Road Department Pune",
         type: "road",
@@ -141,15 +113,6 @@ const seedAuthoritiesAndUsers = async () => {
         level: 1
       },
       {
-        name: "City Road Authority Pune",
-        type: "road",
-        jurisdiction: "Pune",
-        email: "cityroad@pune.gov.in",
-        level: 2
-      },
-
-      // Noise (Police)
-      {
         name: "Police Department Pune",
         type: "police",
         jurisdiction: "Pune",
@@ -157,32 +120,14 @@ const seedAuthoritiesAndUsers = async () => {
         level: 1
       },
       {
-        name: "City Police Authority Pune",
-        type: "police",
-        jurisdiction: "Pune",
-        email: "citypolice@pune.gov.in",
-        level: 2
-      },
-
-      // Other
-      {
         name: "General Department Pune",
         type: "general",
         jurisdiction: "Pune",
         email: "general@pune.gov.in",
         level: 1
       },
-      {
-        name: "State General Authority Pune",
-        type: "general",
-        jurisdiction: "Pune",
-        email: "stategeneral@pune.gov.in",
-        level: 2
-      },
 
       // ================= THANE =================
-
-      // Garbage / Municipal
       {
         name: "Thane Municipal Corporation",
         type: "municipal",
@@ -191,14 +136,12 @@ const seedAuthoritiesAndUsers = async () => {
         level: 1
       },
       {
-        name: "City Municipal Authority Thane",
-        type: "municipal",
+        name: "Pollution Control Board Thane",
+        type: "pollution_board",
         jurisdiction: "Thane",
-        email: "citymunicipal@thane.gov.in",
-        level: 2
+        email: "pollution@thane.gov.in",
+        level: 1
       },
-
-      // Road
       {
         name: "Road Department Thane",
         type: "road",
@@ -207,16 +150,57 @@ const seedAuthoritiesAndUsers = async () => {
         level: 1
       },
       {
+        name: "Police Department Thane",
+        type: "police",
+        jurisdiction: "Thane",
+        email: "police@thane.gov.in",
+        level: 1
+      },
+      {
+        name: "General Department Thane",
+        type: "general",
+        jurisdiction: "Thane",
+        email: "general@thane.gov.in",
+        level: 1
+      },
+
+      {
+        name: "City Municipal Authority Thane",
+        type: "municipal",
+        jurisdiction: "Thane",
+        email: "citymunicipal@thane.gov.in",
+        level: 2
+      },
+      {
+        name: "State Pollution Authority Thane",
+        type: "pollution_board",
+        jurisdiction: "Thane",
+        email: "statepollution@thane.gov.in",
+        level: 2
+      },
+      {
         name: "City Road Authority Thane",
         type: "road",
         jurisdiction: "Thane",
         email: "cityroad@thane.gov.in",
         level: 2
       },
+      {
+        name: "City Police Authority Thane",
+        type: "police",
+        jurisdiction: "Thane",
+        email: "citypolice@thane.gov.in",
+        level: 2
+      },
+      {
+        name: "State General Authority Thane",
+        type: "general",
+        jurisdiction: "Thane",
+        email: "stategeneral@thane.gov.in",
+        level: 2
+      },
 
       // ================= DOMBIVLI =================
-
-      // Garbage / Municipal
       {
         name: "Dombivli Municipal Corporation",
         type: "municipal",
@@ -225,14 +209,12 @@ const seedAuthoritiesAndUsers = async () => {
         level: 1
       },
       {
-        name: "City Municipal Authority Dombivli",
-        type: "municipal",
+        name: "Pollution Control Board Dombivli",
+        type: "pollution_board",
         jurisdiction: "Dombivli",
-        email: "citymunicipal@dombivli.gov.in",
-        level: 2
+        email: "pollution@dombivli.gov.in",
+        level: 1
       },
-
-      // Road
       {
         name: "Road Department Dombivli",
         type: "road",
@@ -241,16 +223,21 @@ const seedAuthoritiesAndUsers = async () => {
         level: 1
       },
       {
-        name: "City Road Authority Dombivli",
-        type: "road",
+        name: "Police Department Dombivli",
+        type: "police",
         jurisdiction: "Dombivli",
-        email: "cityroad@dombivli.gov.in",
-        level: 2
+        email: "police@dombivli.gov.in",
+        level: 1
+      },
+      {
+        name: "General Department Dombivli",
+        type: "general",
+        jurisdiction: "Dombivli",
+        email: "general@dombivli.gov.in",
+        level: 1
       },
 
       // ================= AMBERNATH =================
-
-      // Garbage / Municipal
       {
         name: "Ambernath Municipal Council",
         type: "municipal",
@@ -259,14 +246,12 @@ const seedAuthoritiesAndUsers = async () => {
         level: 1
       },
       {
-        name: "City Municipal Authority Ambernath",
-        type: "municipal",
+        name: "Pollution Control Board Ambernath",
+        type: "pollution_board",
         jurisdiction: "Ambernath",
-        email: "citymunicipal@ambernath.gov.in",
-        level: 2
+        email: "pollution@ambernath.gov.in",
+        level: 1
       },
-
-      // Road
       {
         name: "Road Department Ambernath",
         type: "road",
@@ -275,19 +260,60 @@ const seedAuthoritiesAndUsers = async () => {
         level: 1
       },
       {
-        name: "City Road Authority Ambernath",
-        type: "road",
+        name: "Police Department Ambernath",
+        type: "police",
         jurisdiction: "Ambernath",
-        email: "cityroad@ambernath.gov.in",
-        level: 2
-      }
+        email: "police@ambernath.gov.in",
+        level: 1
+      },
+      {
+        name: "General Department Ambernath",
+        type: "general",
+        jurisdiction: "Ambernath",
+        email: "general@ambernath.gov.in",
+        level: 1
+      },
+      // ================= AMBERNATH LEVEL 2 =================
+
+    {
+      name: "City Municipal Authority Ambernath",
+      type: "municipal",
+      jurisdiction: "Ambernath",
+      email: "citymunicipal@ambernath.gov.in",
+      level: 2
+    },
+    {
+      name: "State Pollution Authority Ambernath",
+      type: "pollution_board",
+      jurisdiction: "Ambernath",
+      email: "statepollution@ambernath.gov.in",
+      level: 2
+    },
+    {
+      name: "City Road Authority Ambernath",
+      type: "road",
+      jurisdiction: "Ambernath",
+      email: "cityroad@ambernath.gov.in",
+      level: 2
+    },
+    {
+      name: "City Police Authority Ambernath",
+      type: "police",
+      jurisdiction: "Ambernath",
+      email: "citypolice@ambernath.gov.in",
+      level: 2
+    },
+    {
+      name: "State General Authority Ambernath",
+      type: "general",
+      jurisdiction: "Ambernath",
+      email: "stategeneral@ambernath.gov.in",
+      level: 2
+    }
     ];
 
     const createdAuthorities = await Authority.insertMany(authoritiesData);
 
-    console.log("Authorities seeded successfully");
-
-    // create authority users
     const authorityUsers = createdAuthorities.map((authority) => ({
       name: authority.name + " Officer",
       displayName: authority.name.replace(/\s+/g, "_") + "_Officer",
@@ -300,8 +326,8 @@ const seedAuthoritiesAndUsers = async () => {
 
     await User.insertMany(authorityUsers);
 
-    console.log("Authority users seeded");
-    console.log("Authority login password (DEV): authority123");
+    console.log("✅ Authorities & Users seeded successfully");
+    console.log("🔑 Password: authority123");
 
     process.exit(0);
   } catch (error) {

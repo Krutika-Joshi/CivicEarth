@@ -4,10 +4,11 @@ from tensorflow.keras.preprocessing import image
 import numpy as np
 import io
 import os
+import json
 
 app = Flask(__name__)
 
-# ✅ Load model once at startup (good practice)
+# ✅ Load model once
 model = MobileNetV2(weights='imagenet')
 
 
@@ -18,11 +19,17 @@ def home():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    # ✅ Error handling
     if 'image' not in request.files:
         return jsonify({"error": "No image uploaded"}), 400
 
     file = request.files['image']
+
+    # ✅ Get title from backend (IMPORTANT)
+    raw_title = request.form.get("title", "")
+    title = json.loads(raw_title) if raw_title else ""
+    title = title.lower()
+
+    print("TITLE RECEIVED:", title)
 
     try:
         # ✅ Read and preprocess image
@@ -34,42 +41,81 @@ def predict():
 
         # ✅ Prediction
         preds = model.predict(img_array)
-        decoded = decode_predictions(preds, top=1)[0][0]
+        decoded = decode_predictions(preds, top=3)[0]
 
-        label = decoded[1]
-        confidence = float(decoded[2])
+        labels = [item[1] for item in decoded]
+        confidences = [float(item[2]) for item in decoded]
 
-        # ✅ Category mapping
-        if any(word in label for word in ["bag", "trash", "garbage", "bottle", "plastic", "waste", "ashcan", "trashcan", "dustbin"]):
-            category = "garbage"
+        top_label = labels[0]
+        top_conf = confidences[0]
 
-        elif any(word in label for word in ["water", "leak", "pipe", "drain", "flood"]):
+        print("Top labels:", labels)
+        print("Confidence:", top_conf)
+
+        # =========================
+        # 🔥 STEP 1: TITLE-BASED (PRIORITY)
+        # =========================
+        if "water" in title or "leak" in title or "sewage" in title:
             category = "water"
 
-        elif any(word in label for word in ["road", "street", "highway", "pothole"]):
+        elif "garbage" in title or "dump" in title or "waste" in title:
+            category = "garbage"
+
+        elif "road" in title or "pothole" in title:
             category = "road"
 
-        elif any(word in label for word in ["smoke", "pollution", "factory"]):
+        elif "smoke" in title or "pollution" in title:
             category = "air"
 
-        elif any(word in label for word in ["loud", "speaker", "noise"]):
+        elif "noise" in title:
             category = "noise"
 
+        # =========================
+        # 🔥 STEP 2: ML FALLBACK
+        # =========================
         else:
-            category = "other"
+            all_labels = " ".join(labels)
 
-        # ✅ Response
+            if any(word in all_labels for word in [
+                "bag", "trash", "garbage", "bottle", "plastic",
+                "bin", "dustbin", "container", "packet", "bucket"
+            ]):
+                category = "garbage"
+
+            elif any(word in all_labels for word in [
+                "water", "pipe", "drain", "flood", "river", "canoe"
+            ]):
+                category = "water"
+
+            elif any(word in all_labels for word in [
+                "road", "street", "highway", "pavement"
+            ]):
+                category = "road"
+
+            elif any(word in all_labels for word in [
+                "smoke", "pollution", "factory", "chimney"
+            ]):
+                category = "air"
+
+            elif any(word in all_labels for word in [
+                "speaker", "loud", "noise"
+            ]):
+                category = "noise"
+
+            else:
+                category = "garbage"  # 👈 NO "other" anymore
+
+        # ✅ Final response
         return jsonify({
-            "original_label": label,
+            "original_label": top_label,
             "category": category,
-            "confidence": confidence
+            "confidence": top_conf
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-# ✅ IMPORTANT: Render-compatible run
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5001))
     app.run(host="0.0.0.0", port=port)
