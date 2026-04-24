@@ -84,7 +84,11 @@ const createReport = async (req, res) => {
 
     if (file.mimetype.startsWith("image")) {
       const formData = new FormData();
-      formData.append("image", fs.createReadStream(file.path));
+      if (file.path) {
+          formData.append("image", fs.createReadStream(file.path));
+        } else {
+          formData.append("image", file.buffer, file.originalname);
+        }
       formData.append("title", JSON.stringify(title));
 
       try {
@@ -102,10 +106,22 @@ const createReport = async (req, res) => {
         console.log("ML API Response:", mlResponse.data);
         aiCategory = mlResponse.data.category;
 
-      } catch (err) {
-        console.error("ML API error:", err.message);
-        aiCategory = "other";
+     } catch (err) {
+      console.error("ML API error:", err.message);
+
+      // 🔥 fallback based on title
+      const text = title.toLowerCase();
+
+      if (text.includes("water") || text.includes("leak")) {
+        aiCategory = "water";
+      } else if (text.includes("garbage") || text.includes("waste")) {
+        aiCategory = "garbage";
+      } else if (text.includes("road") || text.includes("pothole")) {
+        aiCategory = "road";
+      } else {
+        aiCategory = "garbage"; // default safe fallback
       }
+    }
     }
 
     // =========================
