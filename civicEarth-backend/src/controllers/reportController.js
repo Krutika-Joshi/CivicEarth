@@ -89,7 +89,7 @@ const createReport = async (req, res) => {
 
       try {
         const mlResponse = await axios.post(
-          "http://localhost:5001/predict",
+          process.env.ML_API_URL,
           formData,
           {
             headers: {
@@ -114,7 +114,7 @@ const createReport = async (req, res) => {
     const media = [
       {
         type: file.mimetype.startsWith("video") ? "video" : "image",
-        url: `http://localhost:5000/uploads/${file.filename}`,
+        url: `${process.env.BASE_URL}/uploads/${file.filename}`
       },
     ];
 
@@ -750,7 +750,7 @@ const addAuthorityResponse = async (req, res) => {
         report.response = {
         text: text.trim(),
         images: [
-            `http://localhost:5000/uploads/${req.file.filename}`
+           `${process.env.BASE_URL}/uploads/${req.file.filename}`
         ],
         respondedAt: new Date()
         };
