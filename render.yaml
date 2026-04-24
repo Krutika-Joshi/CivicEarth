@@ -5,7 +5,7 @@ services:
     env: python
     region: virginia
     rootDir: civicEarth-ml          # FIXED: was 'ml'
-    buildCommand: pip install -r requirements.txt
+    buildCommand: python --version && python -m pip install --upgrade pip setuptools wheel && pip install -r requirements.txt
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT  # FIXED
     envVars:
       - key: PYTHON_VERSION
