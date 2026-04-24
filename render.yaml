@@ -1,11 +1,37 @@
 services:
+  # ── ML Service ─────────────────────────────────────────
   - type: web
     name: civicearth-ml
     env: python
     region: virginia
-    rootDir: ml
+    rootDir: civicEarth-ml          # FIXED: was 'ml'
     buildCommand: pip install -r requirements.txt
-    startCommand: python app.py
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT  # FIXED
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.13
+
+  # ── Node.js Backend ────────────────────────────────────
+  - type: web
+    name: civicearth-backend
+    env: node
+    region: virginia
+    rootDir: .                       # run from repo root
+    buildCommand: npm install
+    startCommand: node src/server.js
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.0
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ML_SERVICE_URL
+        fromService:
+          name: civicearth-ml
+          type: web
+          property: host
+      - key: BACKEND_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
