@@ -20,7 +20,7 @@ const { createReport,
 const Authority = require("../models/Authority");
 
 //Create report
-router.post("/", protect, upload.single("media"), createReport);
+router.post("/", protect, upload.single("file"), createReport);
 
 //View & filter reports
 router.get("/", protect, getReports);
