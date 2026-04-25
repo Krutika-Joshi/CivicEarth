@@ -278,55 +278,92 @@ const getMyReports = async (req, res) => {
 };
 
 
-const getReports = async(req, res) => {
-    try{
-        const { page = 1, limit = 10, status, category, city } = req.query;
+// const getReports = async(req, res) => {
+//     try{
+//         const { page = 1, limit = 10, status, category, city } = req.query;
 
-        const query = {};
+//         const query = {};
 
-        //role based access
-        if(req.user.role === "citizen") {
-            // query.reportedByBy = req.user.id;
-        }
+//         //role based access
+//         if(req.user.role === "citizen") {
+//             // query.reportedByBy = req.user.id;
+//         }
 
-        //filters
-        if(status) {
-            query.status = status;
-        }
-        if(category) {
-            query.category = category;
-        }
-        if(city) {
-            query.city = city;
-        }
+//         //filters
+//         if(status) {
+//             query.status = status;
+//         }
+//         if(category) {
+//             query.category = category;
+//         }
+//         if(city) {
+//             query.city = city;
+//         }
 
-        const reports = await Report.find(query)
-        .populate("assignedAuthority", "name type jurisdiction")
-        .sort({ createdAt: -1 }) //latest first
-        .skip((page - 1) * limit)
-        .limit(Number(limit));
+//         const reports = await Report.find(query)
+//         .populate("assignedAuthority", "name type jurisdiction")
+//         .sort({ createdAt: -1 }) //latest first
+//         .skip((page - 1) * limit)
+//         .limit(Number(limit));
 
-        const total = await Report.countDocuments(query);
+//         const total = await Report.countDocuments(query);
 
-        res.status(200).json({
-            success: true,
-            total,
-            page: Number(page),
-            reports
-        });
-
-
+//         res.status(200).json({
+//             success: true,
+//             total,
+//             page: Number(page),
+//             reports
+//         });
 
 
-    } catch(error) {
-        res.status(500).json({
-            messgae: "server error",
-            error: error.message
-        });
+
+
+//     } catch(error) {
+//         res.status(500).json({
+//             messgae: "server error",
+//             error: error.message
+//         });
+//     }
+// };
+
+const getReports = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, status, category, city } = req.query;
+
+    const query = {};
+
+    // ✅ FIX: Safe check for req.user
+    if (req.user && req.user.role === "citizen") {
+      // query.reportedBy = req.user.id;
     }
+
+    if (status) query.status = status;
+    if (category) query.category = category;
+    if (city) query.city = city;
+
+    const reports = await Report.find(query)
+      .populate("assignedAuthority", "name type jurisdiction")
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+
+    const total = await Report.countDocuments(query);
+
+    res.status(200).json({
+      success: true,
+      total,
+      page: Number(page),
+      reports
+    });
+
+  } catch (error) {
+    console.error("GET REPORTS ERROR:", error); // 🔥 ADD THIS
+    res.status(500).json({
+      message: "server error",
+      error: error.message
+    });
+  }
 };
-
-
 const getSingleReport = async(req, res) => {
     try{
 
